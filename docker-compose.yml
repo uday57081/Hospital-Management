@@ -1,0 +1,71 @@
+# Hospital Management System - Docker Compose
+# Development and Production configurations
+
+version: '3.8'
+
+services:
+  # Main Application
+  hms-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hospital-management-system
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-hospital_management_secure_key_2025_production}
+      - DATABASE_URL=sqlite:///./hms.db
+      - DEBUG=${DEBUG:-false}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
+    volumes:
+      - ./hms.db:/app/hms.db
+      - ./reports:/app/reports
+      - ./static/uploads:/app/static/uploads
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - hms-network
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: hms-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./static:/var/www/static:ro
+    depends_on:
+      - hms-app
+    restart: unless-stopped
+    networks:
+      - hms-network
+    profiles:
+      - production
+
+  # Redis Cache (Future enhancement)
+  redis:
+    image: redis:alpine
+    container_name: hms-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - hms-network
+    profiles:
+      - production
+
+networks:
+  hms-network:
+    driver: bridge
+
+volumes:
+  redis-data:
